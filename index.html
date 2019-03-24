@@ -8,31 +8,66 @@
       var discards = [];
       var shortstack = [];
 
-      function resetCards(section, cards) {
+      function discardedTemplateFn(name) {
+        return '<div>' + name + '</div>';
+      }
+
+      function shortstackTemplateFn(name) {
+        return '<div>' + name + ' <button class="drawn-shortstack" value="' + name + '">Drawn</button></div>';
+      }
+
+      function resetCards(section, cards, templateFn) {
         var $cards = $(section).find(".cards");
         $cards.empty();
 
         for (var i = 0; i < cards.length; i++) {
-          $cards.append('<div>' + cards[i] + '</div>');
+          $cards.append(templateFn(cards[i]));
         }
       }
 
       function resetDiscarded() {
-        resetCards("#discarded-cards", discards);
+        resetCards("#discarded-cards", discards, discardedTemplateFn);
+      }
+
+      function resetShortstack() {
+        resetCards("#shortstack-cards", shortstack, shortstackTemplateFn);
+      }
+
+      function drawnCard(name) {
+        discards.push(name);
+        resetDiscarded();
       }
 
       $(function() {
         $("#draw-card").click(function() {
-          var drawnValue = $("#drawn-card").val();
+          drawnCard($("#drawn-card").val());
           $("#drawn-card").val("");
-          discards.push(drawnValue);
+        });
+
+        $("#epidemic").click(function() {
+          var bottomValue = $("#bottom-card").val();
+          $("#bottom-card").val("");
+          discards.push(bottomValue);
+          shortstack.push.apply(shortstack, discards);
+          discards = [];
           resetDiscarded();
+          resetShortstack();
+        });
+
+        $(document).on("click", ".drawn-shortstack", function() {
+          drawnCard($(this).val());
+          $(this).parents("div:first").remove();
         });
       });
     </script>
   </head>
 
   <body>
+    <div>
+      <input type="text" id="bottom-card" placeholder="Bottom Card" />
+      <button id="epidemic" type="button">Epidemic</button>
+    </div>
+
     <div>
       <input type="text" id="drawn-card" placeholder="Drawn Card" />
       <button id="draw-card" type="button">Draw</button>
