@@ -5,16 +5,69 @@
     <script src="http://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
 
     <script type="text/javascript">
+      function LockStatus() {
+        if (localStorage && localStorage.getItem("lockStatus") && localStorage.getItem("lockStatus") == "locked") {
+          this.locked = true;
+        } else {
+          this.locked = false;
+        }
+      }
+
+      LockStatus.prototype.lock = function() {
+        this.locked = true;
+
+        if (localStorage) {
+          localStorage.setItem("lockStatus", "locked");
+        }
+      }
+
+      LockStatus.prototype.unlock = function() {
+        this.locked = false;
+
+        if (localStorage) {
+          localStorage.setItem("lockStatus", "unlocked");
+        }
+      }
+
+      LockStatus.prototype.redraw = function() {
+        if (this.locked) {
+          $(".when-locked").show();
+          $(".when-unlocked").hide();
+        } else {
+          $(".when-locked").hide();
+          $(".when-unlocked").show();
+        }
+      }
+
       function CardStack(name, divId, template) {
-        this.cards = [];
+        if (localStorage && localStorage.getItem(name)) {
+          this.cards = localStorage.getItem(name).split(",");
+        } else {
+          this.cards = [];
+        }
+
         this.name = name;
         this.divId = divId;
         this.template = template;
       }
 
+      CardStack.prototype.save = function() {
+        if (!localStorage) {
+          return;
+        }
+
+        localStorage.setItem(this.name, this.cards.join(","));
+      };
+
       CardStack.prototype.add = function(name) {
         this.cards.push(name);
+        this.save();
         return this;
+      };
+
+      CardStack.prototype.addAll = function(names) {
+        this.cards = this.cards.concat(names);
+        this.save();
       };
 
       CardStack.prototype.remove = function(name) {
@@ -25,20 +78,19 @@
         }
 
         this.cards.splice(index, 1);
+        this.save();
         return this;
       };
 
       CardStack.prototype.moveTo = function(otherStack) {
-        this.each(function(card) {
-          otherStack.add(card);
-        });
-
+        otherStack.addAll(this.cards);
         this.reset();
         return this;
       };
 
       CardStack.prototype.reset = function() {
         this.cards = [];
+        this.save();
       };
 
       CardStack.prototype.$div = function() {
@@ -91,10 +143,39 @@
       });
 
       var deck = new CardStack("deck", "deck-cards", function(count, name) {
-        return '<div>' + count + ' x ' + name + ' <button class="add-another-to-deck" value="' + name + '">Add</button> <button class="draw-card" value="' + name + '">Draw</button> <button class="epidemic" value="' + name + '">Epidemic</button></div>';
+        return '<div>' + count + ' x ' + name + ' <button class="when-unlocked add-another-to-deck" value="' + name + '">Add</button> <button class="draw-card" value="' + name + '">Draw</button> <button class="epidemic" value="' + name + '">Epidemic</button></div>';
       });
 
+      var lockStatus = new LockStatus();
+
+      function redrawAll() {
+        discards.redraw();
+        shortstack.redraw();
+        deck.redraw();
+        lockStatus.redraw();
+      }
+
       $(function() {
+        redrawAll();
+
+        $("#lock-deck").click(function() {
+          lockStatus.lock();
+          lockStatus.redraw();
+        });
+
+        $("#unlock-deck").click(function() {
+          lockStatus.unlock();
+          lockStatus.redraw();
+        });
+
+        $("#reset-game").click(function() {
+          if (confirm("Really reset the game?")) {
+            discards.moveTo(deck);
+            shortstack.moveTo(deck);
+            redrawAll();
+          }
+        });
+
         $("#add-to-deck").click(function() {
           deck.add($("#deck-card").val()).redraw();
           $("#deck-card").val("");
@@ -143,15 +224,23 @@
     </div>
 
     <div id="deck-cards">
-      <h1>Deck</h1>
+      <h1>
+        Deck
+        <button class="when-unlocked" id="lock-deck">Lock</button>
+        <button class="when-locked" id="unlock-deck">Unlock</button>
+      </h1>
 
       <div class="cards">
       </div>
     </div>
 
-    <div>
+    <div class="when-unlocked">
       <input type="text" id="deck-card" placeholder="New Card" />
       <button id="add-to-deck" type="button">Add</button>
+    </div>
+
+    <div>
+      <button id="reset-game" type="button">Reset Game</button>
     </div>
   </body>
 </html>
