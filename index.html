@@ -5,58 +5,116 @@
     <script src="http://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
 
     <script type="text/javascript">
-      var discards = [];
-      var shortstack = [];
-
-      function discardedTemplateFn(name) {
-        return '<div>' + name + '</div>';
+      function CardStack(name, divId, template) {
+        this.cards = [];
+        this.name = name;
+        this.divId = divId;
+        this.template = template;
       }
 
-      function shortstackTemplateFn(name) {
-        return '<div>' + name + ' <button class="drawn-shortstack" value="' + name + '">Drawn</button></div>';
-      }
+      CardStack.prototype.add = function(name) {
+        this.cards.push(name);
+      };
 
-      function resetCards(section, cards, templateFn) {
-        var $cards = $(section).find(".cards");
-        $cards.empty();
+      CardStack.prototype.remove = function(name) {
+        var index = this.cards.indexOf(name);
 
-        for (var i = 0; i < cards.length; i++) {
-          $cards.append(templateFn(cards[i]));
+        if (index < 0) {
+          throw new Error("Cannot find card to remove: " + name);
         }
-      }
 
-      function resetDiscarded() {
-        resetCards("#discarded-cards", discards, discardedTemplateFn);
-      }
+        this.cards.splice(index, 1);
+      };
 
-      function resetShortstack() {
-        resetCards("#shortstack-cards", shortstack, shortstackTemplateFn);
-      }
+      CardStack.prototype.reset = function() {
+        this.cards = [];
+      };
 
-      function drawnCard(name) {
-        discards.push(name);
-        resetDiscarded();
-      }
+      CardStack.prototype.$div = function() {
+        return $("#" + this.divId);
+      };
+
+      CardStack.prototype.$cards = function() {
+        return this.$div().find(".cards");
+      };
+
+      CardStack.prototype.redraw = function() {
+        var $cards = this.$cards();
+        $cards.empty();
+        var template = this.template;
+
+        this.eachSortedAndCounted(function(count, card) {
+          $cards.append(template(count, card));
+        });
+      };
+
+      CardStack.prototype.eachSortedAndCounted = function(fn) {
+        var cards = this.cards.slice(0);
+        cards.sort();
+
+        while (cards.length > 0) {
+          var size = 0;
+          var card = cards[0];
+
+          while (cards[0] == card) {
+            size++;
+            cards.splice(0, 1);
+          }
+
+          fn.call(null, size, card);
+        }
+      };
+
+      CardStack.prototype.each = function(fn) {
+        for (var i = 0; i < this.cards.length; i++) {
+          fn(this.cards[i]);
+        }
+      };
+
+      var discards = new CardStack("discards", "discarded-cards", function(count, name) {
+        return '<div>' + count + ' x ' + name + '</div>';
+      });
+
+      var shortstack = new CardStack("shortstack", "shortstack-cards", function(count, name) {
+        return '<div>' + count + ' x ' + name + ' <button class="drawn-shortstack" value="' + name + '">Drawn</button></div>';
+      });
+
+      var deck = new CardStack("deck", "deck-cards", function(count, name) {
+        return '<div>' + count + ' x ' + name + '</div>';
+      });
 
       $(function() {
         $("#draw-card").click(function() {
-          drawnCard($("#drawn-card").val());
+          discards.add($("#drawn-card").val());
+          discards.redraw();
           $("#drawn-card").val("");
         });
 
         $("#epidemic").click(function() {
-          var bottomValue = $("#bottom-card").val();
+          discards.add($("#bottom-card").val());
           $("#bottom-card").val("");
-          discards.push(bottomValue);
-          shortstack.push.apply(shortstack, discards);
-          discards = [];
-          resetDiscarded();
-          resetShortstack();
+
+          discards.each(function(card) {
+            shortstack.add(card);
+          });
+
+          discards.reset();
+          discards.redraw();
+          shortstack.redraw();
+        });
+
+        $("#add-to-deck").click(function() {
+          deck.add($("#deck-card").val());
+          $("#deck-card").val("");
+          deck.redraw();
         });
 
         $(document).on("click", ".drawn-shortstack", function() {
-          drawnCard($(this).val());
-          $(this).parents("div:first").remove();
+          var card = $(this).val();
+          discards.add(card);
+          shortstack.remove(card);
+          discards.redraw();
+          shortstack.redraw();
         });
       });
     </script>
@@ -85,6 +143,18 @@
 
       <div class="cards">
       </div>
+    </div>
+
+    <div id="deck-cards">
+      <h1>Deck</h1>
+
+      <div class="cards">
+      </div>
+    </div>
+
+    <div>
+      <input type="text" id="deck-card" placeholder="New Card" />
+      <button id="add-to-deck" type="button">Add</button>
     </div>
   </body>
 </html>
