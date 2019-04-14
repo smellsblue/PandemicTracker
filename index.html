@@ -26,6 +26,14 @@
         this.cards.splice(index, 1);
       };
 
+      CardStack.prototype.moveTo = function(otherStack) {
+        this.each(function(card) {
+          otherStack.add(card);
+        });
+
+        this.reset();
+      };
+
       CardStack.prototype.reset = function() {
         this.cards = [];
       };
@@ -93,12 +101,7 @@
         $("#epidemic").click(function() {
           discards.add($("#bottom-card").val());
           $("#bottom-card").val("");
-
-          discards.each(function(card) {
-            shortstack.add(card);
-          });
-
-          discards.reset();
+          discards.moveTo(shortstack);
           discards.redraw();
           shortstack.redraw();
         });
