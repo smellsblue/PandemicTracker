@@ -3,6 +3,7 @@
   <head>
     <title>Pandemic Tracker</title>
     <script src="http://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+    <style id="lock-rules"></style>
 
     <script type="text/javascript">
       function LockStatus() {
@@ -30,12 +31,16 @@
       }
 
       LockStatus.prototype.redraw = function() {
+        var sheet = $("#lock-rules")[0].sheet;
+
+        if (sheet.rules.length > 0) {
+          sheet.deleteRule(0);
+        }
+
         if (this.locked) {
-          $(".when-locked").show();
-          $(".when-unlocked").hide();
+          sheet.insertRule(".when-unlocked { display: none; }", 0);
         } else {
-          $(".when-locked").hide();
-          $(".when-unlocked").show();
+          sheet.insertRule(".when-locked { display: none; }", 0);
         }
       }
 
@@ -176,6 +181,18 @@
           }
         });
 
+        $("#reset-everything").click(function() {
+          if (confirm("Really reset EVERYTHING?")) {
+            if (confirm("No.... really... all data will be gone... REALLY reset EVERYTHING?")) {
+              discards.reset();
+              shortstack.reset();
+              deck.reset();
+              lockStatus.unlock();
+              redrawAll();
+            }
+          }
+        });
+
         $("#add-to-deck").click(function() {
           deck.add($("#deck-card").val()).redraw();
           $("#deck-card").val("");
@@ -241,6 +258,10 @@
 
     <div>
       <button id="reset-game" type="button">Reset Game</button>
+    </div>
+
+    <div>
+      <button id="reset-everything" type="button">Reset EVERYTHING</button>
     </div>
   </body>
 </html>
