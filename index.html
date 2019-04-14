@@ -14,6 +14,7 @@
 
       CardStack.prototype.add = function(name) {
         this.cards.push(name);
+        return this;
       };
 
       CardStack.prototype.remove = function(name) {
@@ -24,6 +25,7 @@
         }
 
         this.cards.splice(index, 1);
+        return this;
       };
 
       CardStack.prototype.moveTo = function(otherStack) {
@@ -32,6 +34,7 @@
         });
 
         this.reset();
+        return this;
       };
 
       CardStack.prototype.reset = function() {
@@ -88,52 +91,43 @@
       });
 
       var deck = new CardStack("deck", "deck-cards", function(count, name) {
-        return '<div>' + count + ' x ' + name + '</div>';
+        return '<div>' + count + ' x ' + name + ' <button class="add-another-to-deck" value="' + name + '">Add</button> <button class="draw-card" value="' + name + '">Draw</button> <button class="epidemic" value="' + name + '">Epidemic</button></div>';
       });
 
       $(function() {
-        $("#draw-card").click(function() {
-          discards.add($("#drawn-card").val());
-          discards.redraw();
-          $("#drawn-card").val("");
+        $("#add-to-deck").click(function() {
+          deck.add($("#deck-card").val()).redraw();
+          $("#deck-card").val("");
         });
 
-        $("#epidemic").click(function() {
-          discards.add($("#bottom-card").val());
-          $("#bottom-card").val("");
-          discards.moveTo(shortstack);
-          discards.redraw();
+        $(document).on("click", ".epidemic", function() {
+          var card = $(this).val();
+          deck.remove(card).redraw();
+          discards.add(card);
+          discards.moveTo(shortstack).redraw();
           shortstack.redraw();
         });
 
-        $("#add-to-deck").click(function() {
-          deck.add($("#deck-card").val());
-          $("#deck-card").val("");
-          deck.redraw();
+        $(document).on("click", ".draw-card", function() {
+          var card = $(this).val();
+          deck.remove(card).redraw();
+          discards.add(card).redraw();
+        });
+
+        $(document).on("click", ".add-another-to-deck", function() {
+          deck.add($(this).val()).redraw();
         });
 
         $(document).on("click", ".drawn-shortstack", function() {
           var card = $(this).val();
-          discards.add(card);
-          shortstack.remove(card);
-          discards.redraw();
-          shortstack.redraw();
+          shortstack.remove(card).redraw();
+          discards.add(card).redraw();
         });
       });
     </script>
   </head>
 
   <body>
-    <div>
-      <input type="text" id="bottom-card" placeholder="Bottom Card" />
-      <button id="epidemic" type="button">Epidemic</button>
-    </div>
-
-    <div>
-      <input type="text" id="drawn-card" placeholder="Drawn Card" />
-      <button id="draw-card" type="button">Draw</button>
-    </div>
-
     <div id="discarded-cards">
       <h1>Discarded Cards</h1>
 
