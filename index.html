@@ -18,7 +18,7 @@
 
     <script type="text/x-tmpl" id="shortstack-card-tmpl">
       <div>
-        {%= o.count %} x {%= o.name %}
+        {%= o.name %}
         <button class="btn btn-outline-primary drawn-shortstack" value="{%= o.name %}" type="button">Drawn</button>
       </div>
     </script>
@@ -103,7 +103,7 @@
         }
       }
 
-      function CardStack(name, elementId, template) {
+      function CardStack(name, elementId, template, preserveOrder) {
         if (localStorage && localStorage.getItem(name)) {
           this.cards = localStorage.getItem(name).split(",");
         } else {
@@ -113,6 +113,7 @@
         this.name = name;
         this.elementId = elementId;
         this.template = template;
+        this.preserveOrder = preserveOrder;
       }
 
       CardStack.prototype.export = function() {
@@ -182,9 +183,15 @@
         $cards.empty();
         var template = this.template;
 
-        this.eachSortedAndCounted(function(count, card) {
-          $cards.append(tmpl(template, { count: count, name: card }));
-        });
+        if (this.preserveOrder) {
+          this.each(function(card) {
+            $cards.append(tmpl(template, { name: card }));
+          });
+        } else {
+          this.eachSortedAndCounted(function(count, card) {
+            $cards.append(tmpl(template, { count: count, name: card }));
+          });
+        }
       };
 
       CardStack.prototype.eachSortedAndCounted = function(fn) {
@@ -210,9 +217,9 @@
         }
       };
 
-      var discards = new CardStack("discards", "discarded-cards", "discarded-card-tmpl");
-      var shortstack = new CardStack("shortstack", "shortstack-cards", "shortstack-card-tmpl");
-      var deck = new CardStack("deck", "deck-cards", "deck-card-tmpl");
+      var discards = new CardStack("discards", "discarded-cards", "discarded-card-tmpl", false);
+      var shortstack = new CardStack("shortstack", "shortstack-cards", "shortstack-card-tmpl", true);
+      var deck = new CardStack("deck", "deck-cards", "deck-card-tmpl", false);
       var lockStatus = new LockStatus();
 
       function redrawAll() {
