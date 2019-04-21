@@ -12,13 +12,28 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/open-iconic/1.1.1/font/css/open-iconic-bootstrap.min.css" integrity="sha256-BJ/G+e+y7bQdrYkS2RBTyNfBHpA9IuGaPmf9htub5MQ=" crossorigin="anonymous" />
     <style id="lock-rules"></style>
 
+    <style>
+      .undrawable .drawn-shortstack { display: none; }
+    </style>
+
     <script type="text/x-tmpl" id="discarded-card-tmpl">
       <div>{%= o.count %} x {%= o.name %}</div>
     </script>
 
+    <script type="text/x-tmpl" id="shorstack-stack-tmpl">
+      {% if (o.index != 0) { %}
+        <hr />
+      {% } %}
+
+      <div id="shortstack-cards-{%= o.index %}" class="{% if (o.index != 0) { %}undrawable{% } %}">
+        <div class="cards">
+        </div>
+      </div>
+    </script>
+
     <script type="text/x-tmpl" id="shortstack-card-tmpl">
       <div>
-        {%= o.name %}
+        {%= o.count %} x {%= o.name %}
         <button class="btn btn-outline-primary drawn-shortstack" value="{%= o.name %}" type="button">Drawn</button>
       </div>
     </script>
@@ -103,8 +118,8 @@
         }
       }
 
-      function CardStack(name, elementId, template, preserveOrder) {
-        if (localStorage && localStorage.getItem(name)) {
+      function CardStack(name, elementId, template, loadable) {
+        if (localStorage && localStorage.getItem(name) && loadable !== false) {
           this.cards = localStorage.getItem(name).split(",");
         } else {
           this.cards = [];
@@ -113,11 +128,11 @@
         this.name = name;
         this.elementId = elementId;
         this.template = template;
-        this.preserveOrder = preserveOrder;
+        this.loadable = loadable;
       }
 
       CardStack.prototype.export = function() {
-        return this.name + ":" + this.cards.join(",");
+        return this.name + ":" + this.saveString();
       };
 
       CardStack.prototype.import = function(value) {
@@ -128,12 +143,20 @@
         }
       };
 
+      CardStack.prototype.saveString = function() {
+        return this.cards.join(",");
+      };
+
       CardStack.prototype.save = function() {
         if (!localStorage) {
           return;
         }
 
-        localStorage.setItem(this.name, this.cards.join(","));
+        if (this.loadable === false) {
+          return;
+        }
+
+        localStorage.setItem(this.name, this.saveString());
       };
 
       CardStack.prototype.add = function(name) {
@@ -147,14 +170,20 @@
         this.save();
       };
 
-      CardStack.prototype.remove = function(name) {
-        var index = this.cards.indexOf(name);
+      CardStack.prototype.size = function() {
+        return this.cards.length;
+      };
 
-        if (index < 0) {
+      CardStack.prototype.hasCard = function(name) {
+        return this.cards.indexOf(name) >= 0;
+      };
+
+      CardStack.prototype.remove = function(name) {
+        if (!this.hasCard(name)) {
           throw new Error("Cannot find card to remove: " + name);
         }
 
-        this.cards.splice(index, 1);
+        this.cards.splice(this.cards.indexOf(name), 1);
         this.save();
         return this;
       };
@@ -183,15 +212,9 @@
         $cards.empty();
         var template = this.template;
 
-        if (this.preserveOrder) {
-          this.each(function(card) {
-            $cards.append(tmpl(template, { name: card }));
-          });
-        } else {
-          this.eachSortedAndCounted(function(count, card) {
-            $cards.append(tmpl(template, { count: count, name: card }));
-          });
-        }
+        this.eachSortedAndCounted(function(count, card) {
+          $cards.append(tmpl(template, { count: count, name: card }));
+        });
       };
 
       CardStack.prototype.eachSortedAndCounted = function(fn) {
@@ -217,9 +240,138 @@
         }
       };
 
-      var discards = new CardStack("discards", "discarded-cards", "discarded-card-tmpl", false);
-      var shortstack = new CardStack("shortstack", "shortstack-cards", "shortstack-card-tmpl", true);
-      var deck = new CardStack("deck", "deck-cards", "deck-card-tmpl", false);
+      function StackOfStacks(name, elementId, template, stackTemplate) {
+        if (localStorage && localStorage.getItem(name) && localStorage.getItem(name) != "") {
+          this.stacks = [];
+          var loadedStacks = localStorage.getItem(name).split("|");
+
+          for (var i = 0; i < loadedStacks.length; i++) {
+            var stack = new CardStack(name + "-" + i, elementId + "-" + i, stackTemplate, false);
+            stack.addAll(loadedStacks[i].split(","));
+            this.stacks.push(stack);
+          }
+        } else {
+          this.stacks = [new CardStack(name + "-0", elementId + "-0", stackTemplate, false)];
+        }
+
+        this.name = name;
+        this.elementId = elementId;
+        this.template = template;
+        this.stackTemplate = stackTemplate;
+      }
+
+      StackOfStacks.prototype.saveString = function() {
+        var toSave = [];
+
+        for (var i = 0; i < this.stacks.length; i++) {
+          toSave.push(this.stacks[i].saveString());
+        }
+
+        return toSave.join("|");
+      };
+
+      StackOfStacks.prototype.save = function() {
+        if (!localStorage) {
+          return;
+        }
+
+        localStorage.setItem(this.name, this.saveString());
+      };
+
+      StackOfStacks.prototype.export = function() {
+        return this.name + ":" + this.saveString();
+      };
+
+      StackOfStacks.prototype.import = function(value) {
+        this.stacks = [];
+
+        if (value && value != "") {
+          var loadedStacks = value.split("|");
+
+          for (var i = 0; i < loadedStacks.length; i++) {
+            var stack = new CardStack(this.name + "-" + i, this.elementId + "-" + i, this.stackTemplate, false);
+            stack.addAll(loadedStacks[i].split(","));
+            this.stacks.push(stack);
+          }
+        } else {
+          this.stacks.push(new CardStack(this.name + "-0", this.elementId + "-0", this.stackTemplate, false));
+        }
+
+        this.save();
+      };
+
+      StackOfStacks.prototype.reset = function() {
+        this.stacks = [new CardStack(this.name + "-0", this.elementId + "-0", this.stackTemplate, false)];
+        this.save();
+      };
+
+      StackOfStacks.prototype.moveTo = function(otherStack) {
+        for (var i = 0; i < this.stacks.length; i++) {
+          otherStack.addAll(this.stacks[i].cards);
+        }
+
+        this.reset();
+        return this;
+      };
+
+      StackOfStacks.prototype.remove = function(name) {
+        if (!this.stacks[0].hasCard(name)) {
+          throw new Error("The first stack does not have the card: " + name);
+        }
+
+        this.stacks[0].remove(name);
+
+        if (this.stacks[0].size() == 0 && this.stacks.length > 1) {
+          this.stacks.splice(0, 1);
+          this.reindexStacks();
+        }
+
+        this.save();
+        return this;
+      };
+
+      StackOfStacks.prototype.reindexStacks = function() {
+        for (var i = 0; i < this.stacks.length; i++) {
+          this.stacks[i].name = this.name + "-" + i;
+          this.stacks[i].elementId = this.elementId + "-" + i;
+        }
+      };
+
+      StackOfStacks.prototype.$container = function() {
+        return $("#" + this.elementId);
+      };
+
+      StackOfStacks.prototype.$stacks = function() {
+        return this.$container().find(".stacks");
+      };
+
+      StackOfStacks.prototype.redraw = function() {
+        var $stacks = this.$stacks();
+        $stacks.empty();
+        var template = this.template;
+
+        for (var i = 0; i < this.stacks.length; i++) {
+          $stacks.append(tmpl(template, { index: i }));
+          this.stacks[i].redraw();
+        }
+      };
+
+      StackOfStacks.prototype.addAll = function(names) {
+        if (this.stacks.length == 1 && this.stacks[0].size() == 0) {
+          this.stacks[0].addAll(names);
+        } else {
+          var stack = new CardStack(this.name + "-0", this.elementId + "-0", this.stackTemplate, false);
+          stack.addAll(names);
+          this.stacks.unshift(stack);
+          this.reindexStacks();
+        }
+
+        this.save();
+      };
+
+      var discards = new CardStack("discards", "discarded-cards", "discarded-card-tmpl");
+      var shortstack = new StackOfStacks("shortstack", "shortstack-cards", "shorstack-stack-tmpl", "shortstack-card-tmpl");
+      var deck = new CardStack("deck", "deck-cards", "deck-card-tmpl");
       var lockStatus = new LockStatus();
 
       function redrawAll() {
@@ -358,7 +510,7 @@
       <div id="shortstack-cards">
         <h1>Shortstack Cards</h1>
 
-        <div class="cards">
+        <div class="stacks">
         </div>
       </div>
 
