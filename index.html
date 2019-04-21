@@ -26,6 +26,8 @@
       {% } %}
 
       <div id="shortstack-cards-{%= o.index %}" class="{% if (o.index != 0) { %}undrawable{% } %}">
+        <div><small><em class="count"></em></small></div>
+
         <div class="cards">
         </div>
       </div>
@@ -208,6 +210,7 @@
       };
 
       CardStack.prototype.redraw = function() {
+        this.$container().find(".count").text("(" + this.size() + " cards)");
         var $cards = this.$cards();
         $cards.empty();
         var template = this.template;
@@ -337,6 +340,16 @@
         }
       };
 
+      StackOfStacks.prototype.size = function() {
+        var result = 0;
+
+        for (var i = 0; i < this.stacks.length; i++) {
+          result += this.stacks[i].size();
+        }
+
+        return result;
+      }
+
       StackOfStacks.prototype.$container = function() {
         return $("#" + this.elementId);
       };
@@ -346,6 +359,7 @@
       };
 
       StackOfStacks.prototype.redraw = function() {
+        this.$container().find(".count").text("(" + this.size() + " cards)");
         var $stacks = this.$stacks();
         $stacks.empty();
         var template = this.template;
@@ -501,14 +515,20 @@
   <body>
     <div class="container">
       <div id="discarded-cards">
-        <h1>Discarded Cards</h1>
+        <h1>
+          Discarded Cards
+          <small><em class="count"></em></small>
+        </h1>
 
         <div class="cards">
         </div>
       </div>
 
       <div id="shortstack-cards">
-        <h1>Shortstack Cards</h1>
+        <h1>
+          Shortstack Cards
+          <small><em class="count"></em></small>
+        </h1>
 
         <div class="stacks">
         </div>
@@ -517,6 +537,7 @@
       <div id="deck-cards">
         <h1>
           Deck
+          <small><em class="count"></em></small>
           <button class="btn btn-outline-primary when-unlocked" id="lock-deck" type="button"><span class="oi oi-lock-unlocked"></span></button>
           <button class="btn btn-outline-danger when-locked" id="unlock-deck" type="button"><span class="oi oi-lock-locked"></button>
         </h1>
