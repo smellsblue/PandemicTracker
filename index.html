@@ -120,6 +120,88 @@
         }
       }
 
+      function UndoStack() {
+        if (localStorage && localStorage.getItem("undo")) {
+          this.stack = localStorage.getItem("undo").split(",");
+
+          for (var i = 0; i < this.stack.length; i++) {
+            this.stack[i] = UndoElement.load(this.stack[i]);
+          }
+        } else {
+          this.stack = [];
+        }
+      }
+
+      UndoStack.prototype.save = function() {
+        if (!localStorage) {
+          return;
+        }
+
+        localStorage.setItem("undo", this.saveString());
+      };
+
+      UndoStack.prototype.saveString = function() {
+        var savedElements = [];
+
+        for (var i = 0; i < this.stack.length; i++) {
+          savedElements[i] = this.stack[i].saveString();
+        }
+
+        return savedElements.join(",");
+      };
+
+      UndoStack.prototype.add = function(type, value) {
+        this.stack.push(new UndoElement(type, value));
+        this.save();
+      };
+
+      UndoStack.prototype.undo = function() {
+        if (this.stack.length == 0) {
+          console.log("There is nothing to undo!");
+          return;
+        }
+
+        this.stack.pop().undo();
+        this.save();
+      };
+
+      function UndoElement(type, value) {
+        this.type = type;
+        this.value = value;
+      }
+
+      UndoElement.load = function(value) {
+        var splitValue = value.split(":");
+        return new UndoElement(splitValue[0], splitValue[1]);
+      };
+
+      UndoElement.prototype.saveString = function() {
+        return [this.type, this.value].join(":");
+      }
+
+      UndoElement.prototype.undo = function() {
+        switch (this.type) {
+        case "add-another":
+          deck.remove(this.value).redraw();
+          break;
+        case "draw":
+          discards.remove(this.value).redraw();
+          deck.add(this.value).redraw();
+          break;
+        case "draw-short":
+          var splitValue = this.value.split("|");
+          discards.remove(splitValue[0]).redraw();
+          shortstack.add(splitValue[0], splitValue[1] == "true").redraw();
+          break;
+        case "epidemic":
+          discards.addAll(shortstack.removeLastStack());
+          discards.remove(this.value).redraw();
+          shortstack.redraw();
+          deck.add(this.value).redraw();
+          break;
+        }
+      };
+
       function CardStack(name, elementId, template, loadable) {
         if (localStorage && localStorage.getItem(name) && loadable !== false) {
           this.cards = localStorage.getItem(name).split(",");
@@ -333,6 +415,10 @@
         return this;
       };
 
+      StackOfStacks.prototype.isLastOfStack = function() {
+        return this.stacks[0].cards.length == 1;
+      };
+
       StackOfStacks.prototype.reindexStacks = function() {
         for (var i = 0; i < this.stacks.length; i++) {
           this.stacks[i].name = this.name + "-" + i;
@@ -383,10 +469,34 @@
         this.save();
       };
 
+      StackOfStacks.prototype.add = function(name, createNewStack) {
+        if (createNewStack) {
+          this.addAll([name]);
+        } else {
+          this.stacks[0].add(name);
+          this.save();
+        }
+
+        return this;
+      };
+
+      StackOfStacks.prototype.removeLastStack = function() {
+        var result = this.stacks.shift();
+
+        if (this.stacks.length == 0) {
+          this.stacks.push(new CardStack(this.name + "-0", this.elementId + "-0", this.stackTemplate, false));
+        }
+
+        this.reindexStacks();
+        this.save();
+        return result.cards;
+      };
+
       var discards = new CardStack("discards", "discarded-cards", "discarded-card-tmpl");
       var shortstack = new StackOfStacks("shortstack", "shortstack-cards", "shorstack-stack-tmpl", "shortstack-card-tmpl");
       var deck = new CardStack("deck", "deck-cards", "deck-card-tmpl");
       var lockStatus = new LockStatus();
+      var undo = new UndoStack();
 
       function redrawAll() {
         discards.redraw();
@@ -433,8 +543,10 @@
             return;
           }
 
-          deck.add($("#deck-card").val()).redraw();
+          var name = $("#deck-card").val();
+          deck.add(name).redraw();
           $("#deck-card").val("");
+          undo.add("add-another", name);
         });
 
         $("#create-load-link").click(function() {
@@ -485,22 +597,31 @@
           discards.add(card);
           discards.moveTo(shortstack).redraw();
           shortstack.redraw();
+          undo.add("epidemic", card);
         });
 
         $(document).on("click", ".draw-card", function() {
           var card = $(this).val();
           deck.remove(card).redraw();
           discards.add(card).redraw();
+          undo.add("draw", card);
         });
 
         $(document).on("click", ".add-another-to-deck", function() {
           deck.add($(this).val()).redraw();
+          undo.add("add-another", $(this).val());
         });
 
         $(document).on("click", ".drawn-shortstack", function() {
           var card = $(this).val();
+          var lastInStack = shortstack.isLastOfStack();
           shortstack.remove(card).redraw();
           discards.add(card).redraw();
+          undo.add("draw-short", [card, lastInStack].join("|"));
+        });
+
+        $(document).on("click", "#undo", function() {
+          undo.undo();
         });
 
         var loadData = new URL(window.location.href).searchParams.get("loadData");
@@ -556,6 +677,8 @@
       </p>
 
       <p>
+        <button class="btn btn-outline-primary" id="undo" type="button"><span class="oi oi-action-undo"></span></button>
+
         <div class="btn-group">
           <button class="btn btn-outline-danger" id="reset-game" type="button">Reset Game</button>
           <button class="btn btn-outline-danger" id="reset-everything" type="button">Reset EVERYTHING</button>
